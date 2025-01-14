@@ -26,25 +26,22 @@ const BabylonScene: React.FC = () => {
     const scene = new BABYLON.Scene(engine);
     // async 関数内で HavokPhysics の await を使う
     const initScene = async () => {
-      console.log('0');
       // Initialize Havok plugin
       const havokInstance = await HavokPhysics();//#1 error:'await' expressions are only allowed within async functions and at the top levels of modules.ts(1308)
       const havok = new BABYLON.HavokPlugin(false, havokInstance);
-      console.log('1');
       // Enable physics in the scene with a gravity
       scene.enablePhysics(new BABYLON.Vector3(0, -9.8, 0), havok);
-
-
       // ファーストパーソンカメラの設定
       const camera = new BABYLON.UniversalCamera(
         'FirstPersonCamera',
-        new BABYLON.Vector3(0, 10, -1), // 初期位置
+        new BABYLON.Vector3(0, 11, -3), // 初期位置
         scene
       );
       /*
       camera.attachControl(canvasRef.current, true);
       camera.angularSensibility = 1000; // マウス感度の調整
       */
+
 
       //キャラクターの設定
       var state: string | null | undefined = "IN_AIR";
@@ -64,6 +61,12 @@ const BabylonScene: React.FC = () => {
       let characterPosition = new BABYLON.Vector3(0, 10, 0);
       let characterController = new BABYLON.PhysicsCharacterController(characterPosition, { capsuleHeight: h, capsuleRadius: r }, scene);
       camera.setTarget(characterPosition);
+
+      // シーン初期化時に固定の水平距離を決める（例：初期カメラ位置とキャラクターの水平距離）
+      const initOffset = camera.position.subtract(displayCapsule.position);
+      initOffset.y = 0; // 水平成分のみ
+      const fixedHorizontalDistance = initOffset.length();
+      const fixedVerticalDistance = 1;
 
       // State handling
       // depending on character state and support, set the new state
@@ -97,8 +100,8 @@ const BabylonScene: React.FC = () => {
         let nextState = getNextState(supportInfo);
         if (nextState != state) {
           state = nextState;
+          console.log('state=', state);
         }
-
         let upWorld = characterGravity.normalizeToNew();
         upWorld.scaleInPlace(-1.0);
         let forwardWorld = forwardLocalSpace.applyRotationQuaternion(characterOrientation);
@@ -147,17 +150,31 @@ const BabylonScene: React.FC = () => {
 
       // Display tick update: compute new camera position/target, update the capsule for the character display
       scene.onBeforeRenderObservable.add((scene) => {
+        // キャラクター表示用カプセルの位置を物理キャラクターコントローラーの現在の位置に合わせる
         displayCapsule.position.copyFrom(characterController.getPosition());
 
-        // camera following
+        // カメラの追従処理
+        // 1. カメラの正面方向を取得する（この場合ローカル空間での (0, 0, 1) 方向）
         var cameraDirection = camera.getDirection(new BABYLON.Vector3(0, 0, 1));
+
+        // 2. y成分を0にして水平面方向のみにする
         cameraDirection.y = 0;
         cameraDirection.normalize();
-        camera.setTarget(BABYLON.Vector3.Lerp(camera.getTarget(), displayCapsule.position, 0.1));
+
+        // 3. Lerpによる線形補間ではなく、キャラクターの位置に直接ターゲットを設定する
+        camera.setTarget(displayCapsule.position);
+
+        // 4. カメラとキャラクター表示カプセルとの距離を計算
         var dist = BABYLON.Vector3.Distance(camera.position, displayCapsule.position);
+
+        // 5. カメラ位置の水平方向の補正値を計算する処理
+        //    ※ ここではまだ、水平方向の位置調整を行っていますが、
+        //        必要に応じて処理を変更または削除することもできます。
         const amount = (Math.min(dist - 6, 0) + Math.max(dist - 9, 0)) * 0.04;
         cameraDirection.scaleAndAddToRef(amount, camera.position);
-        camera.position.y += (displayCapsule.position.y + 2 - camera.position.y) * 0.04;
+
+        // 6. カメラの高さも直接キャラクターの高さに合わせる
+        camera.position.y = displayCapsule.position.y + fixedVerticalDistance;
       });
 
       // After physics update, compute and set new velocity, update the character controller state
@@ -172,8 +189,8 @@ const BabylonScene: React.FC = () => {
         BABYLON.Quaternion.FromEulerAnglesToRef(0, camera.rotation.y, 0, characterOrientation);
         let desiredLinearVelocity = getDesiredVelocity(dt, support, characterOrientation, characterController.getVelocity());
         characterController.setVelocity(desiredLinearVelocity);
-
         characterController.integrate(dt, support, characterGravity);
+        //console.log('characterPosition.y=', characterController.getPosition().y);
       });
 
       // Rotate camera
@@ -184,11 +201,9 @@ const BabylonScene: React.FC = () => {
           case BABYLON.PointerEventTypes.POINTERDOWN:
             isMouseDown = true;
             break;
-
           case BABYLON.PointerEventTypes.POINTERUP:
             isMouseDown = false;
             break;
-
           case BABYLON.PointerEventTypes.POINTERMOVE:
             if (isMouseDown) {
               var tgt = camera.getTarget().clone();
@@ -250,29 +265,16 @@ const BabylonScene: React.FC = () => {
       // 地面の追加
       const ground1 = BABYLON.MeshBuilder.CreateGround(
         'ground',
-        { width: 50, height: 50 }, // 地面のサイズをcm単位に設定
+        { width: 100, height: 100 },
         scene
       );
-      ground1.position.set(0, 8, 0);
+      ground1.position.set(0, 0, 0);
       ground1.checkCollisions = true; // 地面の衝突判定を有効化
       ground1.receiveShadows = true;
       const groundMaterial1 = new BABYLON.StandardMaterial('groundMaterial', scene);
       groundMaterial1.diffuseColor = new BABYLON.Color3(1, 0.5, 0.5);
       ground1.material = groundMaterial1;
       let plane1 = new BABYLON.PhysicsAggregate(ground1, BABYLON.PhysicsShapeType.BOX, { mass: 0 });
-
-      const ground2 = BABYLON.MeshBuilder.CreateGround(
-        'ground',
-        { width: 50, height: 50 }, // 地面のサイズをcm単位に設定
-        scene
-      );
-      ground2.position.set(50, 0, 0);
-      ground2.checkCollisions = true; // 地面の衝突判定を有効化
-      ground2.receiveShadows = true;
-      const groundMaterial2 = new BABYLON.StandardMaterial('groundMaterial', scene);
-      groundMaterial1.diffuseColor = new BABYLON.Color3(0, 1, 0.5);
-      ground2.material = groundMaterial2;
-      let plane2 = new BABYLON.PhysicsAggregate(ground2, BABYLON.PhysicsShapeType.BOX, { mass: 0 });
 
       // ローディングインジケーターの作成
       const advancedTexture = AdvancedDynamicTexture.CreateFullscreenUI('UI');
