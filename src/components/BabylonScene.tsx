@@ -263,18 +263,18 @@ const BabylonScene: React.FC = () => {
       const shadowGenerator = new BABYLON.ShadowGenerator(1024, directionalLight);
 
       // 地面の追加
-      const ground1 = BABYLON.MeshBuilder.CreateGround(
+      const ground = BABYLON.MeshBuilder.CreateGround(
         'ground',
         { width: 100, height: 100 },
         scene
       );
-      ground1.position.set(0, 0, 0);
-      ground1.checkCollisions = true; // 地面の衝突判定を有効化
-      ground1.receiveShadows = true;
+      ground.position.set(0, 0, 0);
+      ground.checkCollisions = true; // 地面の衝突判定を有効化
+      ground.receiveShadows = true;
       const groundMaterial1 = new BABYLON.StandardMaterial('groundMaterial', scene);
       groundMaterial1.diffuseColor = new BABYLON.Color3(1, 0.5, 0.5);
-      ground1.material = groundMaterial1;
-      let plane1 = new BABYLON.PhysicsAggregate(ground1, BABYLON.PhysicsShapeType.BOX, { mass: 0 });
+      ground.material = groundMaterial1;
+      let plane1 = new BABYLON.PhysicsAggregate(ground, BABYLON.PhysicsShapeType.BOX, { mass: 0 });
 
       // ローディングインジケーターの作成
       const advancedTexture = AdvancedDynamicTexture.CreateFullscreenUI('UI');
@@ -288,7 +288,7 @@ const BabylonScene: React.FC = () => {
       advancedTexture.addControl(loadingText);
 
       // GLTFモデルのロードを非同期関数内で実行
-      /*
+      
       const loadModel = async () => {
         try {
           const result = await BABYLON.SceneLoader.ImportMeshAsync(
@@ -301,10 +301,10 @@ const BabylonScene: React.FC = () => {
           // モデルの初期位置とスケーリングを調整
           result.meshes.forEach((mesh) => {
             mesh.position = new BABYLON.Vector3(0, 0, 0);
-            mesh.scaling = new BABYLON.Vector3(1, 1, 1); // 必要に応じてスケーリング
+            mesh.scaling = new BABYLON.Vector3(0.01, 0.01, 0.01); // 必要に応じてスケーリング
             shadowGenerator.addShadowCaster(mesh);
             if (mesh !== ground) { // 地面以外のメッシュに衝突判定を追加
-              //mesh.checkCollisions = true;
+              mesh.checkCollisions = true;
             }
           });
   
@@ -316,7 +316,7 @@ const BabylonScene: React.FC = () => {
         }
       };
       loadModel();
-      */
+    
 
       // ウィンドウサイズの変更に対応
       const handleResize = () => {
