@@ -6,18 +6,13 @@ import * as BABYLON from '@babylonjs/core';
 import '@babylonjs/loaders';
 import '@babylonjs/gui';
 import { AdvancedDynamicTexture, TextBlock, Control } from '@babylonjs/gui';
-import { FreeCameraKeyboardWalkInput } from './FreeCameraKeybordWalkInput';
 import HavokPhysics from "@babylonjs/havok";
-
-async function getInitializedHavok() {
-  return await HavokPhysics();
-}
 
 const BabylonScene: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const velocityY = useRef(0); // 垂直方向の速度 (cm/s)
-  const isOnGround = useRef(true); // 地面にいるかどうか
-
+  const cameraFirstPosition = new BABYLON.Vector3(3, 1, 4);
+  const cupsuleFirstPosition = new BABYLON.Vector3(3, 1, 3);
+  const headOffset = new BABYLON.Vector3(0, 0.6, 0);
   useEffect(() => {
     if (!canvasRef.current) return;
 
@@ -34,43 +29,47 @@ const BabylonScene: React.FC = () => {
       // ファーストパーソンカメラの設定
       const camera = new BABYLON.UniversalCamera(
         'FirstPersonCamera',
-        new BABYLON.Vector3(0, 11, -3), // 初期位置
+        cameraFirstPosition, // 初期位置
         scene
       );
-      /*
-      camera.attachControl(canvasRef.current, true);
-      camera.angularSensibility = 1000; // マウス感度の調整
-      */
-
-
+      console.log('camera=', camera);
+      //console.log('camera.minZ=', camera.minZ);
+      camera.fov = 1.1;
+      camera.minZ = 0.2;
       //キャラクターの設定
       var state: string | null | undefined = "IN_AIR";
       var inAirSpeed = 8.0;
       var onGroundSpeed = 10.0;
-      var jumpHeight = 1.5;
-      var wantJump = false;
-      var inputDirection = new BABYLON.Vector3(0, 0, 0);
+      var jumpHeight = 0.6;
+      let wantJump = false;
+      let wantMove = false;
+      let wantRotate = false;
+      let inputDirection = new BABYLON.Vector3(0, 0, 0);
+      let rotateDirection = 0;
       var forwardLocalSpace = new BABYLON.Vector3(0, 0, 1);
       let characterOrientation = BABYLON.Quaternion.Identity();
-      let characterGravity = new BABYLON.Vector3(0, -1, 0);
-
+      let characterGravity = new BABYLON.Vector3(0, -5, 0);
+      const cameraAngularSpeed = 0.01;
       // Physics shape for the character
-      let h = 1.8;
-      let r = 0.6;
+      let h = 1.2;
+      let r = 0.2;
       let displayCapsule = BABYLON.MeshBuilder.CreateCapsule("CharacterDisplay", { height: h, radius: r }, scene);
-      let characterPosition = new BABYLON.Vector3(0, 10, 0);
+      let characterPosition = cupsuleFirstPosition.clone();
+      let headPosition = cupsuleFirstPosition.clone().addInPlace(headOffset);
       let characterController = new BABYLON.PhysicsCharacterController(characterPosition, { capsuleHeight: h, capsuleRadius: r }, scene);
-      camera.setTarget(characterPosition);
+      displayCapsule.visibility = 0.1;
+      //camera.setTarget(characterPosition);
+      //camera.setTarget(headPosition);
 
       // シーン初期化時に固定の水平距離を決める（例：初期カメラ位置とキャラクターの水平距離）
       const initOffset = camera.position.subtract(displayCapsule.position);
       initOffset.y = 0; // 水平成分のみ
       const fixedHorizontalDistance = initOffset.length();
-      const fixedVerticalDistance = 1;
+
 
       // State handling
       // depending on character state and support, set the new state
-      var getNextState = function (supportInfo: BABYLON.CharacterSurfaceInfo) {
+      const getNextState = function (supportInfo: BABYLON.CharacterSurfaceInfo) {
         if (state == "IN_AIR") {
           if (supportInfo.supportedState == BABYLON.CharacterSupportedState.SUPPORTED) {
             return "ON_GROUND";
@@ -91,7 +90,7 @@ const BabylonScene: React.FC = () => {
 
       // From aiming direction and state, compute a desired velocity
       // That velocity depends on current state (in air, on ground, jumping, ...) and surface properties
-      var getDesiredVelocity = function (
+      const getDesiredVelocity = function (
         deltaTime: number,
         supportInfo: BABYLON.CharacterSurfaceInfo,
         characterOrientation: BABYLON.Quaternion,
@@ -119,7 +118,6 @@ const BabylonScene: React.FC = () => {
           // Correct input velocity to apply instantly any changes in the velocity of the standing surface and this way
           // avoid artifacts caused by filtering of the output velocity when standing on moving objects.
           let desiredVelocity = inputDirection.scale(onGroundSpeed).applyRotationQuaternion(characterOrientation);
-
           let outputVelocity = characterController.calculateMovement(deltaTime, forwardWorld, supportInfo.averageSurfaceNormal, currentVelocity, supportInfo.averageSurfaceVelocity, desiredVelocity, upWorld);
           // Horizontal projection
           {
@@ -162,19 +160,20 @@ const BabylonScene: React.FC = () => {
         cameraDirection.normalize();
 
         // 3. Lerpによる線形補間ではなく、キャラクターの位置に直接ターゲットを設定する
-        camera.setTarget(displayCapsule.position);
+        const headPosition = displayCapsule.position.clone().addInPlace(headOffset);
+        //camera.setTarget(headPosition);
 
         // 4. カメラとキャラクター表示カプセルとの距離を計算
-        var dist = BABYLON.Vector3.Distance(camera.position, displayCapsule.position);
+        var dist = BABYLON.Vector3.Distance(camera.position, headPosition);
 
         // 5. カメラ位置の水平方向の補正値を計算する処理
         //    ※ ここではまだ、水平方向の位置調整を行っていますが、
         //        必要に応じて処理を変更または削除することもできます。
-        const amount = (Math.min(dist - 6, 0) + Math.max(dist - 9, 0)) * 0.04;
-        cameraDirection.scaleAndAddToRef(amount, camera.position);
-
+        const amount = (Math.min(dist - 1, 0) + Math.max(dist - 1.1, 0)) * 0.04;
+        //cameraDirection.scaleAndAddToRef(amount, camera.position);
+        camera.position.copyFrom(headPosition);
         // 6. カメラの高さも直接キャラクターの高さに合わせる
-        camera.position.y = displayCapsule.position.y + fixedVerticalDistance;
+        //camera.position.y = headPosition.y;
       });
 
       // After physics update, compute and set new velocity, update the character controller state
@@ -182,19 +181,21 @@ const BabylonScene: React.FC = () => {
         if (scene.deltaTime == undefined) return;
         let dt = scene.deltaTime / 1000.0;
         if (dt == 0) return;
-
-        let down = new BABYLON.Vector3(0, -1, 0);
-        let support = characterController.checkSupport(dt, down);
-
+        //キャラクターの移動
+        const down = new BABYLON.Vector3(0, -1, 0);
+        const support = characterController.checkSupport(dt, down);
         BABYLON.Quaternion.FromEulerAnglesToRef(0, camera.rotation.y, 0, characterOrientation);
         let desiredLinearVelocity = getDesiredVelocity(dt, support, characterOrientation, characterController.getVelocity());
         characterController.setVelocity(desiredLinearVelocity);
         characterController.integrate(dt, support, characterGravity);
-        //console.log('characterPosition.y=', characterController.getPosition().y);
+        //カメラの回転
+        camera.rotation.y += rotateDirection * cameraAngularSpeed;
+        //console.log('camera.rotation.y=', camera.rotation.y);
       });
 
       // Rotate camera
       // Add a slide vector to rotate arount the character
+      /*
       let isMouseDown = false;
       scene.onPointerObservable.add((pointerInfo) => {
         switch (pointerInfo.type) {
@@ -213,30 +214,36 @@ const BabylonScene: React.FC = () => {
             break;
         }
       });
-
+      */
       // Input to direction
       // from keys down/up, update the Vector3 inputDirection to match the intended direction. Jump with space
       scene.onKeyboardObservable.add((kbInfo) => {
         switch (kbInfo.type) {
           case BABYLON.KeyboardEventTypes.KEYDOWN:
             if (kbInfo.event.key == 'w' || kbInfo.event.key == 'ArrowUp') {
+              wantMove = true;
               inputDirection.z = 1;
             } else if (kbInfo.event.key == 's' || kbInfo.event.key == 'ArrowDown') {
+              wantMove = true;
               inputDirection.z = -1;
             } else if (kbInfo.event.key == 'a' || kbInfo.event.key == 'ArrowLeft') {
-              inputDirection.x = -1;
+              wantRotate = true;
+              rotateDirection = -1;
             } else if (kbInfo.event.key == 'd' || kbInfo.event.key == 'ArrowRight') {
-              inputDirection.x = 1;
+              wantRotate = true;
+              rotateDirection = 1;
             } else if (kbInfo.event.key == ' ') {
               wantJump = true;
             }
             break;
           case BABYLON.KeyboardEventTypes.KEYUP:
             if (kbInfo.event.key == 'w' || kbInfo.event.key == 's' || kbInfo.event.key == 'ArrowUp' || kbInfo.event.key == 'ArrowDown') {
+              wantMove = false;
               inputDirection.z = 0;
             }
             if (kbInfo.event.key == 'a' || kbInfo.event.key == 'd' || kbInfo.event.key == 'ArrowLeft' || kbInfo.event.key == 'ArrowRight') {
-              inputDirection.x = 0;
+              wantRotate = false;
+              rotateDirection = 0;
             } else if (kbInfo.event.key == ' ') {
               wantJump = false;
             }
@@ -262,23 +269,8 @@ const BabylonScene: React.FC = () => {
       // シャドウマップの設定（オプション）
       const shadowGenerator = new BABYLON.ShadowGenerator(1024, directionalLight);
 
-      // 地面の追加
-      const ground = BABYLON.MeshBuilder.CreateGround(
-        'ground',
-        { width: 100, height: 100 },
-        scene
-      );
-      ground.position.set(0, 0, 0);
-      ground.checkCollisions = true; // 地面の衝突判定を有効化
-      ground.receiveShadows = true;
-      const groundMaterial1 = new BABYLON.StandardMaterial('groundMaterial', scene);
-      groundMaterial1.diffuseColor = new BABYLON.Color3(1, 0.5, 0.5);
-      ground.material = groundMaterial1;
-      let plane1 = new BABYLON.PhysicsAggregate(ground, BABYLON.PhysicsShapeType.BOX, { mass: 0 });
-
       // ローディングインジケーターの作成
       const advancedTexture = AdvancedDynamicTexture.CreateFullscreenUI('UI');
-
       const loadingText = new TextBlock();
       loadingText.text = 'Loading...';
       loadingText.color = 'white';
@@ -288,26 +280,29 @@ const BabylonScene: React.FC = () => {
       advancedTexture.addControl(loadingText);
 
       // GLTFモデルのロードを非同期関数内で実行
-      
+
       const loadModel = async () => {
         try {
           const result = await BABYLON.SceneLoader.ImportMeshAsync(
             '', // 全てのメッシュをインポート
             '/models/', // モデルファイルのディレクトリ
-            'ifaa_house_01.glb', // 正しいモデルファイル名
+            'ifaa_house_03_invertZ.glb', // 正しいモデルファイル名
             scene
           );
-  
+
           // モデルの初期位置とスケーリングを調整
           result.meshes.forEach((mesh) => {
+            //console.log('load mesh=', mesh.name, ' indices.length=', mesh.getIndices()?.length);
             mesh.position = new BABYLON.Vector3(0, 0, 0);
-            mesh.scaling = new BABYLON.Vector3(0.01, 0.01, 0.01); // 必要に応じてスケーリング
+            //mesh.scaling = new BABYLON.Vector3(1, 1, 1); // 必要に応じてスケーリング
             shadowGenerator.addShadowCaster(mesh);
-            if (mesh !== ground) { // 地面以外のメッシュに衝突判定を追加
-              mesh.checkCollisions = true;
+            const indices = mesh.getIndices();
+            const indicesLength = indices ? indices.length : 0;
+            if (indicesLength > 0) {
+              let ag = new BABYLON.PhysicsAggregate(mesh, BABYLON.PhysicsShapeType.MESH, { mass: 0 });
             }
           });
-  
+
           // ローディングインジケーターの非表示
           advancedTexture.removeControl(loadingText);
         } catch (error) {
@@ -316,7 +311,7 @@ const BabylonScene: React.FC = () => {
         }
       };
       loadModel();
-    
+
 
       // ウィンドウサイズの変更に対応
       const handleResize = () => {
