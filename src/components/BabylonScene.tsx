@@ -38,8 +38,8 @@ const BabylonScene: React.FC = () => {
       camera.minZ = 0.2;
       //キャラクターの設定
       var state: string | null | undefined = "IN_AIR";
-      var inAirSpeed = 8.0;
-      var onGroundSpeed = 10.0;
+      var inAirSpeed = 3.0;
+      var onGroundSpeed = 5.0;
       var jumpHeight = 0.6;
       let wantJump = false;
       let inputDirection = new BABYLON.Vector3(0, 0, 0);
@@ -194,21 +194,18 @@ const BabylonScene: React.FC = () => {
       // カメラの回転
       let isMouseDown = false;
       scene.onPointerObservable.add((pointerInfo) => {
+        const isRightClick = pointerInfo.event.inputIndex == BABYLON.PointerInput.RightClick;
         switch (pointerInfo.type) {
           case BABYLON.PointerEventTypes.POINTERDOWN:
-            isMouseDown = true;
+            isMouseDown = isRightClick;
             break;
           case BABYLON.PointerEventTypes.POINTERUP:
             isMouseDown = false;
             break;
           case BABYLON.PointerEventTypes.POINTERMOVE:
             if (isMouseDown) {
-              /*
-              var tgt = camera.getTarget().clone();
-              camera.position.addInPlace(camera.getDirection(BABYLON.Vector3.Right()).scale(pointerInfo.event.movementX * -0.02));
-              camera.setTarget(tgt);
-              */
-              camera.rotation.y += pointerInfo.event.movementX * 0.01;
+              camera.rotation.y += pointerInfo.event.movementX * cameraAngularSpeed;
+              camera.rotation.x += pointerInfo.event.movementY * cameraAngularSpeed;
             }
             break;
         }
@@ -223,10 +220,8 @@ const BabylonScene: React.FC = () => {
             } else if (kbInfo.event.key == 's' || kbInfo.event.key == 'ArrowDown') {
               inputDirection.z = -1;
             } else if (kbInfo.event.key == 'a' || kbInfo.event.key == 'ArrowLeft') {
-              //rotateDirection = -1;
               inputDirection.x = -1;
             } else if (kbInfo.event.key == 'd' || kbInfo.event.key == 'ArrowRight') {
-              //rotateDirection = 1;
               inputDirection.x = 1;
             } else if (kbInfo.event.key == ' ') {
               wantJump = true;
@@ -275,7 +270,6 @@ const BabylonScene: React.FC = () => {
       advancedTexture.addControl(loadingText);
 
       // GLTFモデルのロードを非同期関数内で実行
-
       const loadModel = async () => {
         try {
           const result = await BABYLON.SceneLoader.ImportMeshAsync(
