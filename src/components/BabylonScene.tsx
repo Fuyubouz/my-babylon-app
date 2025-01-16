@@ -50,7 +50,7 @@ const BabylonScene: React.FC = () => {
       const cameraAngularSpeed = 0.01;
       // Physics shape for the character
       let h = 1.2;
-      let r = 0.2;
+      let r = 0.15;
       let displayCapsule = BABYLON.MeshBuilder.CreateCapsule("CharacterDisplay", { height: h, radius: r }, scene);
       let characterPosition = cupsuleFirstPosition.clone();
       let headPosition = cupsuleFirstPosition.clone().addInPlace(headOffset);
@@ -241,20 +241,27 @@ const BabylonScene: React.FC = () => {
         }
       });
 
+      //スカイボックス
+      const envTexture = new BABYLON.CubeTexture("/textures/Daylight_01", scene);
+      const skybox = scene.createDefaultSkybox(envTexture, true, 1000);
+      //console.log('skybox intensity=',skybox.intensity);
       // ライトの追加
+
       const hemisphericLight = new BABYLON.HemisphericLight(
         'hemiLight',
         new BABYLON.Vector3(1, 1, 0),
         scene
       );
-
+      hemisphericLight.intensity = 0.5;
+      //console.log('hemisphericLight intensity=',hemisphericLight.intensity);
       // 追加のライト（オプション）
       const directionalLight = new BABYLON.DirectionalLight(
         'directionalLight',
         new BABYLON.Vector3(-1, -2, -1),
         scene
       );
-      directionalLight.position = new BABYLON.Vector3(2000, 4000, 2000); // cm単位に調整
+      directionalLight.position = new BABYLON.Vector3(2000, 4000, 2000);
+      console.log('directionalLight intensity=', directionalLight.intensity);
 
       // シャドウマップの設定（オプション）
       const shadowGenerator = new BABYLON.ShadowGenerator(1024, directionalLight);
