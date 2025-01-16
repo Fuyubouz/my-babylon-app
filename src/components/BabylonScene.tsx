@@ -246,6 +246,10 @@ const BabylonScene: React.FC = () => {
 
       const skyMaterial = new SkyMaterial("skyMaterial", scene);
       skyMaterial.backFaceCulling = false;
+      skyMaterial.inclination = 0.3; // The solar inclination, related to the solar azimuth in interval [0, 1]
+      skyMaterial.azimuth = 0.8; 
+      //skyMaterial.luminance = 0.5;
+      console.log("skyMaterial=", skyMaterial);
 
       const skybox = BABYLON.MeshBuilder.CreateBox("skyBox", { size: 1000.0 }, scene);
       skybox.material = skyMaterial;
