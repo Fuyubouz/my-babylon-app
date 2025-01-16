@@ -7,6 +7,7 @@ import '@babylonjs/loaders';
 import '@babylonjs/gui';
 import { AdvancedDynamicTexture, TextBlock, Control } from '@babylonjs/gui';
 import HavokPhysics from "@babylonjs/havok";
+import { SkyMaterial } from "@babylonjs/materials";
 
 const BabylonScene: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -242,8 +243,14 @@ const BabylonScene: React.FC = () => {
       });
 
       //スカイボックス
-      const envTexture = new BABYLON.CubeTexture("/textures/Daylight_01", scene);
-      const skybox = scene.createDefaultSkybox(envTexture, true, 1000);
+
+      const skyMaterial = new SkyMaterial("skyMaterial", scene);
+      skyMaterial.backFaceCulling = false;
+
+      const skybox = BABYLON.MeshBuilder.CreateBox("skyBox", { size: 1000.0 }, scene);
+      skybox.material = skyMaterial;
+      //const envTexture = new BABYLON.CubeTexture("/textures/Daylight_01", scene);
+      //const skybox = scene.createDefaultSkybox(envTexture, true, 1000);
       //console.log('skybox intensity=',skybox.intensity);
       // ライトの追加
 
